@@ -1,3 +1,0 @@
-C:/Users/DaleT/Downloads/GPGPU Ass1/CMakeFiles/wave.dir
-C:/Users/DaleT/Downloads/GPGPU Ass1/CMakeFiles/ALL_BUILD.dir
-C:/Users/DaleT/Downloads/GPGPU Ass1/CMakeFiles/ZERO_CHECK.dir

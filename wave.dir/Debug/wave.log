@@ -1,5 +1,0 @@
-﻿  Compiling CUDA source file ..\gpgpu_assignment1\code\wave.cu...
-  
-  C:\Users\DaleT\Downloads\GPGPU Ass1>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\HostX64\x64" -x cu   -I"C:\Users\DaleT\Downloads\gpgpu_assignment1\code\cuda-samples\Common" -I"C:\Dev\vcpkg\installed\x64-windows\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include"     --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static -Xcompiler="/EHsc -Zi -Ob0" -g  -D_WINDOWS -D"CMAKE_INTDIR=\"Debug\"" -D"CMAKE_INTDIR=\"Debug\"" -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdwave.dir\Debug\vc142.pdb /FS /Zi /RTC1 /MDd /GR" -o wave.dir\Debug\wave.obj "C:\Users\DaleT\Downloads\gpgpu_assignment1\code\wave.cu" 
-  wave.cu
-  wave.vcxproj -> C:\Users\DaleT\Downloads\GPGPU Ass1\Debug\wave.exe
