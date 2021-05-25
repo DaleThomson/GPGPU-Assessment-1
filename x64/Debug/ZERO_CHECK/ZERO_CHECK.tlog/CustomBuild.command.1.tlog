@@ -1,0 +1,10 @@
+^C:\USERS\DALET\DOWNLOADS\GPGPU ASS1\CMAKEFILES\6C05982F37CB8791C8A8169312F2436E\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/DaleT/Downloads/gpgpu_assignment1/code "-BC:/Users/DaleT/Downloads/GPGPU Ass1" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/DaleT/Downloads/GPGPU Ass1/wave.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
