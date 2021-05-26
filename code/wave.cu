@@ -41,13 +41,15 @@
 
 const unsigned REFRESH_DELAY = 10; //ms
 
-const unsigned mesh_width = 256;
-const unsigned mesh_height = 256;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned window_width = 512;
 const unsigned window_height = 512;
+
+const unsigned mesh_width = 256;
+const unsigned mesh_height = 256;
 
 // vbo variables
 GLuint vbo;
@@ -71,6 +73,8 @@ int fpsLimit = 1;        // FPS limit for sampling
 float avgFPS = 0.0f;
 unsigned int frameCount = 0;
 
+
+bool waveSelect = true;
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 bool run(int argc, char** argv);
@@ -95,7 +99,7 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, bool waveSelect)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -108,7 +112,16 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 
 	// calculate simple sine wave pattern
 	float freq = 4.0f;
-	float w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	float w;
+	if (waveSelect)
+	{
+		w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	}
+	else
+	{
+		w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	}
+	
 
 	// write output vertex
 	pos[y * width + x] = make_float4(u, w, v, 1.0f);
@@ -235,7 +248,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, mesh_height, g_fAnim);
+	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, mesh_height, g_fAnim, waveSelect);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -376,6 +389,12 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	case ('n'):
 		if (meshB >= 0.0f)
 			meshB -= 0.1f;
+		break;
+	case ('1'):
+		waveSelect = true;
+		break;
+	case ('2'):
+		waveSelect = false;
 		break;
 	}
 }
