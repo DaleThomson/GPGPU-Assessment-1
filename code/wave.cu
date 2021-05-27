@@ -78,6 +78,8 @@ int waveSelect = 0;
 float g_fUserAnim = 0.01f;
 float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
 float userFreq = 4.0f;
+int user_mesh_width = 256;
+int user_mesh_height = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -166,9 +168,9 @@ void computeFPS()
 		sdkResetTimer(&timer);
 	}
 
-	char fps[256];
-	sprintf(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", avgFPS);
-	glutSetWindowTitle(fps);
+	char variables[256];
+	sprintf(variables, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz) Mesh Height: %u Freq: %3.1f Speed: %3.1f R: %3.1f G: %3.1f B: %3.1f", avgFPS, user_mesh_height, userFreq, g_fUserAnim ,meshR, meshG, meshB);
+	glutSetWindowTitle(variables);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +262,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, mesh_height, g_fAnim, waveSelect, userFreq);
+	simple_vbo_kernel << <grid, block >> > (dptr, user_mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -411,6 +413,16 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 			userFreq -= 1.0f;
 		if (userFreq < 1.0f)
 			userFreq = 1.0f;
+		break;
+	case ('c'):
+		if (user_mesh_height >= 1)
+			user_mesh_height -= 1;
+		if (user_mesh_height < 1)
+			user_mesh_height = 1;
+		break;
+	case ('v'):
+		if (user_mesh_height < 1024)
+		user_mesh_height += 1;
 		break;
 	case ('1'):
 		waveSelect = 0;
