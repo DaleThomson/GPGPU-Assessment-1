@@ -77,6 +77,7 @@ unsigned int frameCount = 0;
 int waveSelect = 0;
 float g_fUserAnim = 0.01f;
 float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
+float userFreq = 4.0f;
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -102,7 +103,7 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -114,7 +115,7 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	v = v * 2.0f - 1.0f;
 
 	// calculate simple sine wave pattern
-	float freq = 4.0f;
+	float freq = userFreq;
 	float w;
 	if (waveSelect == 0)
 	{
@@ -132,7 +133,7 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	{
 		w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
 	}
-	
+
 
 	// write output vertex
 	pos[y * width + x] = make_float4(u, w, v, 1.0f);
@@ -259,7 +260,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, mesh_height, g_fAnim, waveSelect);
+	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, mesh_height, g_fAnim, waveSelect, userFreq);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -400,6 +401,16 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	case ('n'):
 		if (meshB >= 0.0f)
 			meshB -= 0.1f;
+		break;
+	case ('x'):
+		if (userFreq < 10.0f)
+			userFreq += 1.0f;
+		break;
+	case ('z'):
+		if (userFreq >= 1.0f)
+			userFreq -= 1.0f;
+		if (userFreq < 1.0f)
+			userFreq = 1.0f;
 		break;
 	case ('1'):
 		waveSelect = 0;
