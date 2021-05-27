@@ -57,8 +57,6 @@ cudaGraphicsResource* cuda_vbo_resource = nullptr;
 void* d_vbo_buffer = nullptr;
 
 float g_fAnim = 0.0;
-float g_fUserAnim = 0.01f;
-float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
@@ -73,8 +71,13 @@ int fpsLimit = 1;        // FPS limit for sampling
 float avgFPS = 0.0f;
 unsigned int frameCount = 0;
 
+////////////////////////////////////////////////////////////////////////////////
+// variables
 
-bool waveSelect = true;
+int waveSelect = 0;
+float g_fUserAnim = 0.01f;
+float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
+
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 bool run(int argc, char** argv);
@@ -99,7 +102,7 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, bool waveSelect)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -113,13 +116,21 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	// calculate simple sine wave pattern
 	float freq = 4.0f;
 	float w;
-	if (waveSelect)
+	if (waveSelect == 0)
 	{
 		w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
 	}
-	else
+	else if (waveSelect == 1)
 	{
 		w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	}
+	else if (waveSelect == 2)
+	{
+		w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	}
+	else if (waveSelect == 3)
+	{
+		w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
 	}
 	
 
@@ -391,10 +402,16 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 			meshB -= 0.1f;
 		break;
 	case ('1'):
-		waveSelect = true;
+		waveSelect = 0;
 		break;
 	case ('2'):
-		waveSelect = false;
+		waveSelect = 1;
+		break;
+	case ('3'):
+		waveSelect = 2;
+		break;
+	case ('4'):
+		waveSelect = 3;
 		break;
 	}
 }
