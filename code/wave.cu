@@ -29,6 +29,8 @@
 
 #include <iostream>
 #include <cassert>
+#include <ctime>
+#include <cstdlib>
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -50,6 +52,7 @@ const unsigned window_height = 512;
 
 const unsigned mesh_width = 256;
 const unsigned mesh_height = 256;
+const unsigned mesh_depth = 256;
 
 // vbo variables
 GLuint vbo;
@@ -74,12 +77,17 @@ unsigned int frameCount = 0;
 ////////////////////////////////////////////////////////////////////////////////
 // variables
 
-int waveSelect = 0;
+int waveSelect;
 float g_fUserAnim = 0.01f;
 float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
 float userFreq = 4.0f;
-int user_mesh_width = 256;
 int user_mesh_height = 256;
+int circlePosX = mesh_width / 2;
+int circlePosY = user_mesh_height / 2;
+float circleRadius = 20;
+int circlePosZ = (int)circleRadius * 2;
+
+bool circleCheck = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -105,40 +113,80 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, unsigned int depth, float time, int waveSelect, float userFreq, int circlePosX, int circlePosY, int circlePosZ, float circleRadius, bool circleCheck)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+	
+	//All references to a Z coordinate were an attempt to generate a Sphere
+//	unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
 	// calculate uv coordinates
 	float u = x / (float)width;
 	float v = y / (float)height;
+//	float t = z / (float)depth;
 	u = u * 2.0f - 1.0f;
 	v = v * 2.0f - 1.0f;
+//	t = t * 2.0f - 1.0f;
 
 	// calculate simple sine wave pattern
 	float freq = userFreq;
-	float w;
-	if (waveSelect == 0)
+	float w[3];
+
+	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+//	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
+	w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+
+	GLfloat circleCenterX = x - ((float)circlePosX);
+	GLfloat circleCenterY = y - ((float)circlePosY);
+//	GLfloat circleCenterZ = z - ((float)circlePosZ);
+
+	if (circleCheck)
 	{
-		w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+		if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) < (circleRadius * circleRadius))
+		{
+			w[waveSelect] = 0;
+		}
+		else
+		{
+			w[waveSelect];
+		}
 	}
-	else if (waveSelect == 1)
-	{
-		w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	}
-	else if (waveSelect == 2)
-	{
-		w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	}
-	else if (waveSelect == 3)
-	{
-		w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	}
+
+	//if (circleCheck)
+	//{
+	//	if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) + (circleCenterZ * circleCenterZ) < (circleRadius * circleRadius))
+	//	{
+	//		w[waveSelect] = 0;
+	//	}
+	//	else
+	//	{
+	//		w[waveSelect];
+	//	}
+	//}
+
+	//if (waveSelect == 0)
+	//{
+	//	w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 1)
+	//{
+	//	w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 2)
+	//{
+	//	w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 3)
+	//{
+	//	w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//}
 
 
 	// write output vertex
-	pos[y * width + x] = make_float4(u, w, v, 1.0f);
+	pos[y * width + x] = make_float4(u, w[waveSelect], v, 1.0f);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +199,7 @@ int main(int argc, char** argv)
 	run(argc, argv);
 
 	std::cout << "wave assignment program completed.\n";
+
 	return 0;
 }
 
@@ -169,7 +218,7 @@ void computeFPS()
 	}
 
 	char variables[256];
-	sprintf(variables, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz) Mesh Height: %u Freq: %3.1f Speed: %3.1f R: %3.1f G: %3.1f B: %3.1f", avgFPS, user_mesh_height, userFreq, g_fUserAnim ,meshR, meshG, meshB);
+	sprintf(variables, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz) Mesh Height: %u Freq: %3.1f Speed: %3.1f R: %3.1f G: %3.1f B: %3.1f", avgFPS, user_mesh_height, userFreq, g_fUserAnim, meshR, meshG, meshB);
 	glutSetWindowTitle(variables);
 }
 
@@ -251,6 +300,7 @@ bool run(int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 void runCuda(struct cudaGraphicsResource** vbo_resource)
 {
+
 	// map OpenGL buffer object for writing from CUDA
 	float4* dptr;
 	checkCudaErrors(cudaGraphicsMapResources(1, vbo_resource, 0));
@@ -262,7 +312,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, user_mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq);
+	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, mesh_depth, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circlePosZ, circleRadius, circleCheck);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -348,6 +398,7 @@ void timerEvent(int value)
 	{
 		glutPostRedisplay();
 		glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
+
 	}
 }
 
@@ -422,7 +473,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		break;
 	case ('v'):
 		if (user_mesh_height < 1024)
-		user_mesh_height += 1;
+			user_mesh_height += 1;
 		break;
 	case ('1'):
 		waveSelect = 0;
