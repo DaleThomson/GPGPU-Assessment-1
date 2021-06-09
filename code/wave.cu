@@ -52,7 +52,7 @@ const unsigned window_height = 512;
 
 const unsigned mesh_width = 256;
 const unsigned mesh_height = 256;
-const unsigned mesh_depth = 256;
+//const unsigned mesh_depth = 256;
 
 // vbo variables
 GLuint vbo;
@@ -102,6 +102,7 @@ void deleteVBO(GLuint* vbo, cudaGraphicsResource* vbo_res);
 // rendering callbacks
 void display();
 void keyboard(unsigned char key, int x, int y);
+void specialKeyboard(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void timerEvent(int value);
@@ -113,35 +114,35 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, unsigned int depth, float time, int waveSelect, float userFreq, int circlePosX, int circlePosY, int circlePosZ, float circleRadius, bool circleCheck)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq, int circlePosX, int circlePosY, int circlePosZ, float circleRadius, bool circleCheck)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
-	
+
 	//All references to a Z coordinate were an attempt to generate a Sphere
 //	unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
 	// calculate uv coordinates
 	float u = x / (float)width;
 	float v = y / (float)height;
-//	float t = z / (float)depth;
+	//	float t = z / (float)depth;
 	u = u * 2.0f - 1.0f;
 	v = v * 2.0f - 1.0f;
-//	t = t * 2.0f - 1.0f;
+	//	t = t * 2.0f - 1.0f;
 
-	// calculate simple sine wave pattern
+		// calculate simple sine wave pattern
 	float freq = userFreq;
 	float w[3];
 
 	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-//	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
+	//	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
 	w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
 	w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
 	w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
 
 	GLfloat circleCenterX = x - ((float)circlePosX);
 	GLfloat circleCenterY = y - ((float)circlePosY);
-//	GLfloat circleCenterZ = z - ((float)circlePosZ);
+	//	GLfloat circleCenterZ = z - ((float)circlePosZ);
 
 	if (circleCheck)
 	{
@@ -233,6 +234,7 @@ bool initGL(int* argc, char** argv)
 	glutCreateWindow("Cuda GL Interop (VBO)");
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
+	glutSpecialFunc(specialKeyboard);
 	glutMotionFunc(motion);
 	glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
 
@@ -279,6 +281,7 @@ bool run(int argc, char** argv)
 	// register callbacks
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
+	glutSpecialFunc(specialKeyboard);
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
 	glutCloseFunc(cleanup);
@@ -312,7 +315,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, mesh_depth, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circlePosZ, circleRadius, circleCheck);
+	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circlePosZ, circleRadius, circleCheck);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -412,6 +415,23 @@ void cleanup()
 	}
 }
 
+
+void specialKeyboard(int key, int x, int y)
+{
+	switch (key)
+	{
+	case (GLUT_KEY_UP):
+		if (circleRadius >= 100.0f)
+			circleRadius = 100.0f;
+		circleRadius++;
+		break;
+	case (GLUT_KEY_DOWN):
+		if (circleRadius <= 10.0f)
+			circleRadius = 10.0f;
+		circleRadius--;
+		break;
+	}
+}
 ////////////////////////////////////////////////////////////////////////////////
 //! Keyboard events handler
 ////////////////////////////////////////////////////////////////////////////////
@@ -476,17 +496,30 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 			user_mesh_height += 1;
 		break;
 	case ('w'):
-		circlePosY++;
+		if (circlePosY > 0)
+			circlePosY--;
+		else
+			circlePosY = 0;
 		break;
 	case ('s'):
-		circlePosY--;
-		break;
-	case ('d'):
-		circlePosX++;
+		if (circlePosY <= user_mesh_height)
+			circlePosY++;
+		else
+			circlePosY = user_mesh_height;
 		break;
 	case ('a'):
-		circlePosX--;
+		if (circlePosX > 0)
+			circlePosX--;
+		else
+			circlePosX = 0;
 		break;
+	case ('d'):
+		if (circlePosX <= mesh_width)
+			circlePosX++;
+		else
+			circlePosX = mesh_width;
+		break;
+
 	case ('1'):
 		waveSelect = 0;
 		break;
