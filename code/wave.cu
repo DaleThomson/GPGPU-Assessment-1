@@ -475,6 +475,18 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		if (user_mesh_height < 1024)
 			user_mesh_height += 1;
 		break;
+	case ('w'):
+		circlePosY++;
+		break;
+	case ('s'):
+		circlePosY--;
+		break;
+	case ('d'):
+		circlePosX++;
+		break;
+	case ('a'):
+		circlePosX--;
+		break;
 	case ('1'):
 		waveSelect = 0;
 		break;
