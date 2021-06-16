@@ -41,6 +41,8 @@
 #include <helper_cuda.h>
 #include <vector_types.h>
 
+#include <random>
+
 const unsigned REFRESH_DELAY = 10; //ms
 
 
@@ -93,6 +95,7 @@ int randBufferSize = (mesh_width * user_mesh_height * 4);
 float jitterMin = -0.5f;
 float jitterMax = 0.5f;
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 bool run(int argc, char** argv);
@@ -115,9 +118,18 @@ void jitterCalculate();
 // Cuda functionality
 void runCuda(cudaGraphicsResource** vbo_resource);
 
+std::random_device rd;
+std::mt19937 gen(rd());
+
+std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
+
+// Jitter Implementation
 void jitterCalculate()
 {
-	rand1 = rand();
+	for (unsigned i = 0; i < 200; ++i)
+	{
+		dis(gen);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
