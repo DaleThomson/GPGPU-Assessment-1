@@ -85,9 +85,13 @@ int user_mesh_height = 256;
 int circlePosX = mesh_width / 2;
 int circlePosY = user_mesh_height / 2;
 float circleRadius = 20;
-int circlePosZ = (int)circleRadius * 2;
-
+//int circlePosZ = (int)circleRadius * 2;
 bool circleCheck = true;
+bool jitter = false;
+float rand1, rand2, rand3, rand4 = 0.10f;
+int randBufferSize = (mesh_width * user_mesh_height * 4);
+float jitterMin = -0.5f;
+float jitterMax = 0.5f;
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -106,15 +110,21 @@ void specialKeyboard(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void timerEvent(int value);
+void jitterCalculate();
 
 // Cuda functionality
 void runCuda(cudaGraphicsResource** vbo_resource);
+
+void jitterCalculate()
+{
+	rand1 = rand();
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq, int circlePosX, int circlePosY, int circlePosZ, float circleRadius, bool circleCheck)
+__global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq, int circlePosX, int circlePosY, float circleRadius, bool circleCheck)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -134,11 +144,11 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	float freq = userFreq;
 	float w[3];
 
-	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-	//	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
-	w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	////	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
+	//w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	//w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
 
 	GLfloat circleCenterX = x - ((float)circlePosX);
 	GLfloat circleCenterY = y - ((float)circlePosY);
@@ -152,7 +162,21 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 		}
 		else
 		{
-			w[waveSelect];
+			switch (waveSelect)
+			{
+			case 0:
+				w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+				break;
+			case 1:
+				w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+				break;
+			case 2:
+				w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+				break;
+			case 3:
+				w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+			}
+
 		}
 	}
 
@@ -219,7 +243,7 @@ void computeFPS()
 	}
 
 	char variables[256];
-	sprintf(variables, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz) Mesh Height: %u Freq: %3.1f Speed: %3.1f R: %3.1f G: %3.1f B: %3.1f", avgFPS, user_mesh_height, userFreq, g_fUserAnim, meshR, meshG, meshB);
+	sprintf(variables, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz) Mesh Height: %u Freq: %3.1f Speed: %3.1f R: %3.1f G: %3.1f B: %3.1f Circle Postion: (%u,%u) Circle Radius: %3.1f", avgFPS, user_mesh_height, userFreq, g_fUserAnim, meshR, meshG, meshB, circlePosX, circlePosY, circleRadius);
 	glutSetWindowTitle(variables);
 }
 
@@ -270,7 +294,7 @@ bool run(int argc, char** argv)
 
 	// use command-line specified CUDA device, otherwise use device with highest Gflops/s
 	int devID = findCudaDevice(argc, (const char**)argv);
-
+	//cudaMalloc(())
 	// First initialize OpenGL context, so we can properly set the GL for CUDA.
 	// This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
 	if (false == initGL(&argc, argv))
@@ -303,7 +327,7 @@ bool run(int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 void runCuda(struct cudaGraphicsResource** vbo_resource)
 {
-
+	jitterCalculate();
 	// map OpenGL buffer object for writing from CUDA
 	float4* dptr;
 	checkCudaErrors(cudaGraphicsMapResources(1, vbo_resource, 0));
@@ -315,7 +339,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circlePosZ, circleRadius, circleCheck);
+	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circleRadius, circleCheck);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
