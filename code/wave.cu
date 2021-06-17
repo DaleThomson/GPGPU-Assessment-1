@@ -90,12 +90,6 @@ int circlePosY = user_mesh_height / 2;
 float circleRadius = 20;
 //int circlePosZ = (int)circleRadius * 2;
 bool circleCheck = true;
-bool jitter = false;
-float rand1, rand2, rand3, rand4 = 0.10f;
-int randBufferSize = (mesh_width * user_mesh_height * 4);
-float jitterMin = -0.5f;
-float jitterMax = 0.5f;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -124,10 +118,13 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 std::random_device rd;
 std::mt19937 gen(rd());
 
-std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
+std::uniform_real_distribution<float> dis(-0.1f, 0.1f);
 
 static const int jitterBufferSize = (mesh_width * mesh_height * 4);
 std::array <float, jitterBufferSize> jitterBuffer;
+
+bool jitter = false;
+float* d_jitterBuffer;
 
 void jitterCalculate()
 {
@@ -231,6 +228,86 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	pos[y * width + x] = make_float4(u, w[waveSelect], v, 1.0f);
 }
 
+__global__ void jitter_kernel(float4* pos, unsigned int width, unsigned int height, float time, int waveSelect, float userFreq, float *jitterBuffer)
+{
+	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	//All references to a Z coordinate were an attempt to generate a Sphere
+//	unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
+
+	// calculate uv coordinates
+	float u = x / (float)width;
+	float v = y / (float)height;
+	//	float t = z / (float)depth;
+	u = u * 2.0f - 1.0f;
+	v = v * 2.0f - 1.0f;
+	//	t = t * 2.0f - 1.0f;
+
+		// calculate simple sine wave pattern
+	float freq = userFreq;
+	float w[3];
+
+	//w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	////	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
+	//w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	//w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+
+	//	GLfloat circleCenterZ = z - ((float)circlePosZ);
+
+	switch (waveSelect)
+	{
+	case 0:
+		w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+		break;
+	case 1:
+		w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+		break;
+	case 2:
+		w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+		break;
+	case 3:
+		w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	}
+
+	//if (circleCheck)
+	//{
+	//	if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) + (circleCenterZ * circleCenterZ) < (circleRadius * circleRadius))
+	//	{
+	//		w[waveSelect] = 0;
+	//	}
+	//	else
+	//	{
+	//		w[waveSelect];
+	//	}
+	//}
+
+	//if (waveSelect == 0)
+	//{
+	//	w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 1)
+	//{
+	//	w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 2)
+	//{
+	//	w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//}
+	//else if (waveSelect == 3)
+	//{
+	//	w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+	//}
+
+
+	// write output vertex
+	pos[y * width + x].x += jitterBuffer[y * width + x * 4];
+	pos[y * width + x].y += jitterBuffer[y * width + x * 4];
+	pos[y * width + x].z += jitterBuffer[y * width + x * 4];
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,13 +388,15 @@ bool run(int argc, char** argv)
 
 	// use command-line specified CUDA device, otherwise use device with highest Gflops/s
 	int devID = findCudaDevice(argc, (const char**)argv);
-	//cudaMalloc(())
+
 	// First initialize OpenGL context, so we can properly set the GL for CUDA.
 	// This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
 	if (false == initGL(&argc, argv))
 	{
 		return false;
 	}
+
+	checkCudaErrors(cudaMalloc((void**)&d_jitterBuffer, jitterBuffer.size() * (sizeof(float))));
 
 	// register callbacks
 	glutDisplayFunc(display);
@@ -347,17 +426,25 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	jitterCalculate();
 	// map OpenGL buffer object for writing from CUDA
 	float4* dptr;
+	float4* offset;
 	checkCudaErrors(cudaGraphicsMapResources(1, vbo_resource, 0));
 	size_t num_bytes;
 	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void**)&dptr, &num_bytes,
 		*vbo_resource));
+
+
+	checkCudaErrors(cudaMemcpy(d_jitterBuffer, jitterBuffer.data(), jitterBuffer.size() * sizeof(float), cudaMemcpyHostToDevice));
+
 	//std::cout << "CUDA mapped VBO: May access " << num_bytes << " bytes\n";
 
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
 	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circleRadius, circleCheck);
-
+	if (jitter)
+	{
+		jitter_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, d_jitterBuffer);
+	}
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
 }
@@ -560,7 +647,6 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		else
 			circlePosX = mesh_width;
 		break;
-
 	case ('1'):
 		waveSelect = 0;
 		break;
@@ -572,6 +658,12 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		break;
 	case ('4'):
 		waveSelect = 3;
+		break;
+	case ('f'):
+		if (jitter)
+			jitter = false;
+		else
+			jitter = true;
 		break;
 	}
 }
