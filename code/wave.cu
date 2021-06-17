@@ -55,7 +55,6 @@ const unsigned window_height = 512;
 
 const unsigned mesh_width = 256;
 const unsigned mesh_height = 256;
-//const unsigned mesh_depth = 256;
 
 // vbo variables
 GLuint vbo;
@@ -80,16 +79,15 @@ unsigned int frameCount = 0;
 ////////////////////////////////////////////////////////////////////////////////
 // variables
 
-int waveSelect;
-float g_fUserAnim = 0.01f;
-float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f;
-float userFreq = 4.0f;
-int user_mesh_height = 256;
-int circlePosX = mesh_width / 2;
-int circlePosY = user_mesh_height / 2;
-float circleRadius = 20;
-//int circlePosZ = (int)circleRadius * 2;
-bool circleCheck = true;
+int waveSelect; //Used to feed the W array and allow the user to select different wave types
+float g_fUserAnim = 0.01f; // Allows the user to adjust the animation speed.
+float meshR = 1.0f, meshG = 1.0f, meshB = 1.0f; // Floats for adjusting the colour of the mesh
+float userFreq = 4.0f; // Allows the user to adjust how frequency of a wave
+int user_mesh_height = 256; // Allows the user to adjust the height of the mesh
+int circlePosX = mesh_width / 2; // The initial X coordinate of the circle
+int circlePosY = user_mesh_height / 2; // The initial Y coordinate of the circle
+float circleRadius = 20; // The initial radius of the circle
+bool circleCheck = true; // A boolean to check for the circle
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -115,19 +113,20 @@ void runCuda(cudaGraphicsResource** vbo_resource);
 
 // Jitter Implementation
 
-std::random_device rd;
-std::mt19937 gen(rd());
+std::random_device rd; // A random device
+std::mt19937 gen(rd()); // A seed for the random device
 
-std::uniform_real_distribution<float> dis(-0.1f, 0.1f);
+std::uniform_real_distribution<float> dis(-0.1f, 0.1f); // Sets the upper and lower limits for the floats generated
 
-static const int jitterBufferSize = (mesh_width * mesh_height * 4);
-std::array <float, jitterBufferSize> jitterBuffer;
+static const int jitterBufferSize = (mesh_width * mesh_height * 4); // Sets the size of the jitterBuffer
+std::array <float, jitterBufferSize> jitterBuffer; // Creates an Array of Floats of the amount of JitterBufferSize
 
-bool jitter = false;
-float* d_jitterBuffer;
+bool jitter = false; // Checks if the Jitter Kernel has been activated.
+float* d_jitterBuffer; // The device side jitterBuffer
 
 void jitterCalculate()
 {
+	// For loop to populate the jitterBuffer
 	for (int i = 0; i < jitterBuffer.size(); ++i)
 	{
 		jitterBuffer[i] = dis(gen);
@@ -143,33 +142,23 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-	//All references to a Z coordinate were an attempt to generate a Sphere
-//	unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
-
 	// calculate uv coordinates
 	float u = x / (float)width;
 	float v = y / (float)height;
-	//	float t = z / (float)depth;
 	u = u * 2.0f - 1.0f;
 	v = v * 2.0f - 1.0f;
-	//	t = t * 2.0f - 1.0f;
 
-		// calculate simple sine wave pattern
+	// calculate simple sine wave pattern
 	float freq = userFreq;
-	float w[3];
-
-	//w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-	////	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
-	//w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	//w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-
+	float w[3]; // An array to store the different wave types
+	
+	// Calculate the centre of the circle
 	GLfloat circleCenterX = x - ((float)circlePosX);
 	GLfloat circleCenterY = y - ((float)circlePosY);
-	//	GLfloat circleCenterZ = z - ((float)circlePosZ);
 
 	if (circleCheck)
 	{
+		// If the circle is less than 
 		if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) < (circleRadius * circleRadius))
 		{
 			w[waveSelect] = 0;
@@ -179,50 +168,21 @@ __global__ void simple_vbo_kernel(float4* pos, unsigned int width, unsigned int 
 			switch (waveSelect)
 			{
 			case 0:
-				w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+				w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f; // SinX * CosY wave
 				break;
 			case 1:
-				w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+				w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f; // CosX * SinY wave
 				break;
 			case 2:
-				w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+				w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f; // SinX * TanY wave
 				break;
 			case 3:
-				w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+				w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f; // CosX * TanY wave
+				break;
 			}
 
 		}
 	}
-
-	//if (circleCheck)
-	//{
-	//	if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) + (circleCenterZ * circleCenterZ) < (circleRadius * circleRadius))
-	//	{
-	//		w[waveSelect] = 0;
-	//	}
-	//	else
-	//	{
-	//		w[waveSelect];
-	//	}
-	//}
-
-	//if (waveSelect == 0)
-	//{
-	//	w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 1)
-	//{
-	//	w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 2)
-	//{
-	//	w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 3)
-	//{
-	//	w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//}
-
 
 	// write output vertex
 	pos[y * width + x] = make_float4(u, w[waveSelect], v, 1.0f);
@@ -233,75 +193,33 @@ __global__ void jitter_kernel(float4* pos, unsigned int width, unsigned int heig
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-	//All references to a Z coordinate were an attempt to generate a Sphere
-//	unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
-
 	// calculate uv coordinates
 	float u = x / (float)width;
 	float v = y / (float)height;
-	//	float t = z / (float)depth;
 	u = u * 2.0f - 1.0f;
 	v = v * 2.0f - 1.0f;
-	//	t = t * 2.0f - 1.0f;
 
 		// calculate simple sine wave pattern
 	float freq = userFreq;
 	float w[3];
 
-	//w[0] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-	////	w[0] = sinf(u * freq + time) * cosf(v * freq + time) * sinf(t * freq * time) * 0.5f;
-	//w[1] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	//w[2] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//w[3] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-
-	//	GLfloat circleCenterZ = z - ((float)circlePosZ);
-
 	switch (waveSelect)
 	{
 	case 0:
-		w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
+		w[waveSelect] = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f; // SinX * CosY wave
 		break;
 	case 1:
-		w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
+		w[waveSelect] = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f; // CosX * SinY wave
 		break;
 	case 2:
-		w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+		w[waveSelect] = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f; // SinX * TanY wave
 		break;
 	case 3:
-		w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
+		w[waveSelect] = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f; // CosX * TanY wave
+		break;
 	}
 
-	//if (circleCheck)
-	//{
-	//	if ((circleCenterX * circleCenterX) + (circleCenterY * circleCenterY) + (circleCenterZ * circleCenterZ) < (circleRadius * circleRadius))
-	//	{
-	//		w[waveSelect] = 0;
-	//	}
-	//	else
-	//	{
-	//		w[waveSelect];
-	//	}
-	//}
-
-	//if (waveSelect == 0)
-	//{
-	//	w = sinf(u * freq + time) * cosf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 1)
-	//{
-	//	w = cosf(u * freq + time) * sinf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 2)
-	//{
-	//	w = sinf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//}
-	//else if (waveSelect == 3)
-	//{
-	//	w = cosf(u * freq + time) * tanf(v * freq + time) * 0.5f;
-	//}
-
-
-	// write output vertex
+	// Calculate the position and then offset it with the contents of the jitterBuffer * 4
 	pos[y * width + x].x += jitterBuffer[y * width + x * 4];
 	pos[y * width + x].y += jitterBuffer[y * width + x * 4];
 	pos[y * width + x].z += jitterBuffer[y * width + x * 4];
@@ -443,6 +361,7 @@ void runCuda(struct cudaGraphicsResource** vbo_resource)
 	simple_vbo_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, circlePosX, circlePosY, circleRadius, circleCheck);
 	if (jitter)
 	{
+		// If jitter is true then switch to the Jitter CUDA Kernel
 		jitter_kernel << <grid, block >> > (dptr, mesh_width, user_mesh_height, g_fAnim, waveSelect, userFreq, d_jitterBuffer);
 	}
 	// unmap buffer object
@@ -546,6 +465,7 @@ void cleanup()
 
 void specialKeyboard(int key, int x, int y)
 {
+	// Manipulate the Circle Radius
 	switch (key)
 	{
 	case (GLUT_KEY_UP):
@@ -565,6 +485,7 @@ void specialKeyboard(int key, int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
+	// Controls for changing different elements
 	switch (key)
 	{
 	case (27):
